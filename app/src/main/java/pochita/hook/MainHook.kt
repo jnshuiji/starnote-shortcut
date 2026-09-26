@@ -7,81 +7,72 @@ import io.github.libxposed.api.XposedModuleInterface.HotReloadedParam
 import io.github.libxposed.api.XposedModuleInterface.HotReloadingParam
 import io.github.libxposed.api.XposedModuleInterface.ModuleLoadedParam
 import io.github.libxposed.api.XposedModuleInterface.PackageReadyParam
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
- * LSPosed (API 102) 模块核心入口类。
+ * Xposed module for StarNote (com.onyx.galaxy.note) runtime compatibility.
  *
- * 必须在 META-INF/xposed/java_init.list 中声明此完整类名。
+ * Resolves architecture detection issues under 64-bit x86 Android runtimes (e.g. WSA)
+ * to ensure normal initialization and startup.
  */
 class MainHook : XposedModule() {
 
     companion object {
-        private const val TAG = "PochitaHook"
+        const val TAG = "StarNoteHook"
+        private const val TARGET_PACKAGE = "com.onyx.galaxy.note"
+        private val isHooked = AtomicBoolean(false)
     }
 
-    /**
-     * 模块被注入目标进程后的最初回调。
-     */
     override fun onModuleLoaded(param: ModuleLoadedParam) {
         super.onModuleLoaded(param)
-        log(Log.INFO, TAG, "Module loaded in process: ${param.processName}, isSystemServer: ${param.isSystemServer}")
+        Log.i(TAG, "Module loaded in process: ${param.processName}")
     }
 
-    /**
-     * 当目标应用的类加载器就绪、准备实例化 Application 时回调。
-     * 绝大部分业务 Hook 建议在此生命周期执行。
-     */
     override fun onPackageReady(param: PackageReadyParam) {
         super.onPackageReady(param)
-        log(Log.INFO, TAG, "Package ready: ${param.packageName}, classloader: ${param.classLoader}")
+        if (param.packageName != TARGET_PACKAGE) return
 
-        // 1. 示例：跨进程读取模块在 UI 端保存的 RemotePreferences 配置 (只读)
-        try {
-            val prefs = getRemotePreferences("config")
-            val isModuleEnabled = prefs.getBoolean("enable_hook", true)
-            log(Log.DEBUG, TAG, "Config read: enable_hook=$isModuleEnabled")
-            if (!isModuleEnabled) return
+        Log.i(TAG, "Package ready for $TARGET_PACKAGE, applying compatibility hooks")
+        applyCompatibilityFix(param.classLoader)
+    }
+
+    /**
+     * Fixes architecture checks under modern 64-bit x86 runtimes where linker binaries
+     * reside in APEX runtime paths, avoiding incorrect fallback to 32-bit binaries.
+     */
+    private fun applyCompatibilityFix(classLoader: ClassLoader): Boolean {
+        if (isHooked.get()) return true
+
+        return try {
+            val tClass = classLoader.loadClass("com.sagittarius.v6.b.t")
+
+            // Force 64-bit detection
+            val dMethod = tClass.getDeclaredMethod("d")
+            hook(dMethod)
+                .setPriority(XposedInterface.PRIORITY_HIGHEST)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { true }
+
+            // Ensure x86 architecture check passes
+            val eMethod = tClass.getDeclaredMethod("e")
+            hook(eMethod)
+                .setPriority(XposedInterface.PRIORITY_HIGHEST)
+                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
+                .intercept { true }
+
+            isHooked.set(true)
+            Log.i(TAG, "Successfully applied architecture compatibility hooks")
+            true
         } catch (t: Throwable) {
-            log(Log.WARN, TAG, "RemotePreferences not available or failed to load: ${t.message}")
+            Log.e(TAG, "Failed to apply architecture compatibility hooks", t)
+            false
         }
-
-        // 2. 示例：Hook 目标方法 (基于 OkHttp 式链式拦截器)
-        // try {
-        //     val targetClass = param.classLoader.loadClass("com.example.TargetClass")
-        //     val targetMethod = targetClass.getDeclaredMethod("targetMethod", String::class.java)
-        //
-        //     hook(targetMethod)
-        //         .setPriority(XposedInterface.PRIORITY_DEFAULT)
-        //         .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-        //         .intercept { chain ->
-        //             val arg0 = chain.args.getOrNull(0)
-        //             log(Log.DEBUG, TAG, "Before calling targetMethod with arg: $arg0")
-        //
-        //             // 执行原方法或下一个拦截器
-        //             val result = chain.proceed()
-        //
-        //             log(Log.DEBUG, TAG, "After calling targetMethod, result: $result")
-        //             result
-        //         }
-        // } catch (t: Throwable) {
-        //     log(Log.ERROR, TAG, "Hook targetMethod failed", t)
-        // }
     }
 
-    /**
-     * API 102 热重载生命周期回调：在旧模块代码中触发。
-     * 返回 true 声明旧代码已准备好卸载，允许框架加载新版模块代码。
-     */
-    override fun onHotReloading(param: HotReloadingParam): Boolean {
-        log(Log.INFO, TAG, "Module is hot reloading...")
-        return true
-    }
+    override fun onHotReloading(param: HotReloadingParam): Boolean = true
 
-    /**
-     * API 102 热重载生命周期回调：在新模块代码中触发。
-     */
     override fun onHotReloaded(param: HotReloadedParam) {
         super.onHotReloaded(param)
-        log(Log.INFO, TAG, "Module hot reloaded successfully!")
+        Log.i(TAG, "Module hot reloaded")
     }
 }

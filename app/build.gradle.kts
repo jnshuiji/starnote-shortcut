@@ -8,7 +8,7 @@ android {
     namespace = "pochita"
     compileSdk = 37
     defaultConfig {
-        applicationId = "pochita.lsposed"
+        applicationId = "pochita.starnote"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
