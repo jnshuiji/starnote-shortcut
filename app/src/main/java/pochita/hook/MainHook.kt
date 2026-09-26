@@ -4,6 +4,7 @@ import android.app.Activity
 import android.util.Log
 import android.view.KeyEvent
 import android.view.MotionEvent
+import android.view.View
 import android.widget.EditText
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModule
@@ -29,7 +30,6 @@ class MainHook : XposedModule() {
         private const val TARGET_PACKAGE = "com.onyx.galaxy.note"
         private const val TARGET_CANVAS_ACTIVITY = "com.onyx.galaxy.note.editor.ui.NoteScribbleActivity"
 
-        private val isCompatibilityHooked = AtomicBoolean(false)
         private val isShortcutHooked = AtomicBoolean(false)
         private var pendingUpConsumeKeyCode: Int = 0
     }
@@ -44,54 +44,8 @@ class MainHook : XposedModule() {
         if (param.packageName != TARGET_PACKAGE) return
 
         Log.i(TAG, "Target package $TARGET_PACKAGE ready, installing hooks...")
-        applyCompatibilityFix(param.classLoader)
+        pochita.hook.patch.ArchitecturePatcher.apply(this, param.classLoader)
         applyShortcutHooks(param.classLoader)
-    }
-
-    private fun isX86Architecture(): Boolean {
-        for (abi in Build.SUPPORTED_ABIS) {
-            if (abi.contains("x86", ignoreCase = true)) {
-                return true
-            }
-        }
-        return false
-    }
-
-    /**
-     * x86 架构运行时动态链接库兼容补丁：
-     * 解决 64 位 x86 运行时环境 APEX 路径导致误判回退 32 位的问题；
-     * 仅在当前设备为 x86 / x86_64 架构时生效，ARM / ARM64 真机环境自动跳过。
-     */
-    private fun applyCompatibilityFix(classLoader: ClassLoader): Boolean {
-        if (!isX86Architecture()) {
-            Log.i(TAG, "ARM architecture detected (${Build.SUPPORTED_ABIS.firstOrNull()}), skipping x86 patch")
-            return true
-        }
-
-        if (isCompatibilityHooked.get()) return true
-
-        return try {
-            val tClass = classLoader.loadClass("com.sagittarius.v6.b.t")
-
-            val dMethod = tClass.getDeclaredMethod("d")
-            hook(dMethod)
-                .setPriority(XposedInterface.PRIORITY_HIGHEST)
-                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                .intercept { true }
-
-            val eMethod = tClass.getDeclaredMethod("e")
-            hook(eMethod)
-                .setPriority(XposedInterface.PRIORITY_HIGHEST)
-                .setExceptionMode(XposedInterface.ExceptionMode.PROTECTIVE)
-                .intercept { true }
-
-            isCompatibilityHooked.set(true)
-            Log.i(TAG, "Successfully applied architecture compatibility hooks")
-            true
-        } catch (t: Throwable) {
-            Log.e(TAG, "Failed to apply architecture compatibility hooks", t)
-            false
-        }
     }
 
     private val isCanvasTargetedHooked = AtomicBoolean(false)
@@ -114,6 +68,10 @@ class MainHook : XposedModule() {
                 installCanvasTargetedHooks(canvasClass)
             } catch (_: Throwable) {}
 
+            try {
+                installRenderManagerHook(classLoader)
+            } catch (_: Throwable) {}
+
             isShortcutHooked.set(true)
             Log.i(TAG, "Successfully installed shortcut mapping hooks")
             true
@@ -123,11 +81,34 @@ class MainHook : XposedModule() {
         }
     }
 
+    private fun installRenderManagerHook(classLoader: ClassLoader) {
+        try {
+            val renderManagerClass = classLoader.loadClass("com.onyx.android.sdk.universal.editor.display.RenderManager")
+            for (method in renderManagerClass.declaredMethods) {
+                if (method.name == "updateEditorView" && method.parameterTypes.size == 2) {
+                    hook(method).intercept { chain ->
+                        val result = chain.proceed()
+                        val view = chain.args[0] as? View
+                        val eventBus = chain.args[1]
+                        if (view != null && eventBus != null) {
+                            NoteScribbleHook.notifyEditorViewAndEventBus(view, eventBus)
+                        }
+                        result
+                    }
+                    Log.i(TAG, "Hooked RenderManager.updateEditorView for direct EventBus injection")
+                    break
+                }
+            }
+        } catch (t: Throwable) {
+            Log.d(TAG, "RenderManager hook notice: ${t.message}")
+        }
+    }
+
     /**
      * 在 NoteScribbleActivity 具体子类上直接安装精准 Hook：
      * 1. dispatchKeyEvent：0ms 顶层截获画板快捷键，阻断 StarNote 内部 stylusPenHelper 冲突；
-     * 2. dispatchTouchEvent：100% 捕获屏幕触控与提笔，驱动快捷键防抖回退；
-     * 3. onGenericMotionEvent：捕获悬停与手势移动事件。
+     * 2. dispatchTouchEvent：100% 捕获屏幕触控与提笔，驱动快捷键防抖回退与画布拖动消费；
+     * 3. onGenericMotionEvent：捕获悬停与手势移动事件，驱动悬空拖动画布。
      */
     private fun installCanvasTargetedHooks(canvasClass: Class<*>) {
         if (isCanvasTargetedHooked.getAndSet(true)) return
@@ -162,7 +143,8 @@ class MainHook : XposedModule() {
                 val activity = chain.thisObject as? Activity
                 val event = chain.args[0] as? MotionEvent
                 if (activity != null && event != null) {
-                    NoteScribbleHook.onMotionEvent(activity, event)
+                    val consumed = NoteScribbleHook.onTouchEvent(activity, event)
+                    if (consumed) return@intercept true
                 }
                 chain.proceed()
             }
@@ -180,7 +162,7 @@ class MainHook : XposedModule() {
                 val activity = chain.thisObject as? Activity
                 val event = chain.args[0] as? MotionEvent
                 if (activity != null && event != null) {
-                    NoteScribbleHook.onMotionEvent(activity, event)
+                    NoteScribbleHook.onGenericMotionEvent(activity, event)
                 }
                 chain.proceed()
             }
@@ -196,50 +178,30 @@ class MainHook : XposedModule() {
         }
 
         val keyCode = event.keyCode
-        val keyToggleEraser = ShortcutSettingsState.keyToggleEraser
-        val keyLasso = ShortcutSettingsState.keyLasso
-        val keyPen = ShortcutSettingsState.keyPen
-        val keyEraser = ShortcutSettingsState.keyEraser
+        if (keyCode <= 0) return false
 
-        // 1. 按切松回（默认 B）
-        if (keyToggleEraser > 0 && keyCode == keyToggleEraser) {
-            if (event.action == KeyEvent.ACTION_DOWN) {
+        val action = when (keyCode) {
+            ShortcutSettingsState.keyDragCanvas -> ActionType.DRAG_CANVAS_HOLD
+            ShortcutSettingsState.keyToggleEraser -> ActionType.TOGGLE_ERASER_HOLD
+            ShortcutSettingsState.keyLasso -> ActionType.SELECT_LASSO
+            ShortcutSettingsState.keyPen -> ActionType.SELECT_PEN
+            ShortcutSettingsState.keyEraser -> ActionType.SELECT_ERASER
+            else -> return false
+        }
+
+        val isHoldAction = action == ActionType.DRAG_CANVAS_HOLD || action == ActionType.TOGGLE_ERASER_HOLD
+
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            if (event.repeatCount == 0) {
                 activity.runOnUiThread {
-                    NoteScribbleHook.executeAction(activity, ActionType.TOGGLE_ERASER_HOLD, isDown = true)
-                }
-            } else if (event.action == KeyEvent.ACTION_UP) {
-                activity.runOnUiThread {
-                    NoteScribbleHook.executeAction(activity, ActionType.TOGGLE_ERASER_HOLD, isDown = false)
+                    NoteScribbleHook.executeAction(activity, action, isDown = true)
                 }
             }
             return true
-        }
-
-        // 2. 套索（默认 E）
-        if (keyLasso > 0 && keyCode == keyLasso) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+        } else if (event.action == KeyEvent.ACTION_UP) {
+            if (isHoldAction) {
                 activity.runOnUiThread {
-                    NoteScribbleHook.executeAction(activity, ActionType.SELECT_LASSO, isDown = true)
-                }
-            }
-            return true
-        }
-
-        // 3. 画笔（默认未配置）
-        if (keyPen > 0 && keyCode == keyPen) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                activity.runOnUiThread {
-                    NoteScribbleHook.executeAction(activity, ActionType.SELECT_PEN, isDown = true)
-                }
-            }
-            return true
-        }
-
-        // 4. 橡皮擦（默认未配置）
-        if (keyEraser > 0 && keyCode == keyEraser) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                activity.runOnUiThread {
-                    NoteScribbleHook.executeAction(activity, ActionType.SELECT_ERASER, isDown = true)
+                    NoteScribbleHook.executeAction(activity, action, isDown = false)
                 }
             }
             return true
@@ -266,6 +228,7 @@ class MainHook : XposedModule() {
                     } else if (className == TARGET_CANVAS_ACTIVITY) {
                         ShortcutSettingsInjector.install(this@MainHook, activity.classLoader)
                         installCanvasTargetedHooks(activity.javaClass)
+                        installRenderManagerHook(activity.classLoader)
                     }
                 }
                 chain.proceed()
@@ -356,7 +319,7 @@ class MainHook : XposedModule() {
             chain.proceed()
         }
 
-        // 4. Activity.dispatchTouchEvent (画板笔触与提笔状态追踪)
+        // 4. Activity.dispatchTouchEvent (画板笔触与提笔状态追踪及画布拖动消费)
         try {
             val dispatchTouchEventMethod = activityClass.getDeclaredMethod("dispatchTouchEvent", MotionEvent::class.java).apply {
                 isAccessible = true
@@ -365,7 +328,8 @@ class MainHook : XposedModule() {
                 val activity = chain.thisObject as? Activity
                 val event = chain.args[0] as? MotionEvent
                 if (activity != null && event != null && activity.javaClass.name == TARGET_CANVAS_ACTIVITY) {
-                    NoteScribbleHook.onMotionEvent(activity, event)
+                    val consumed = NoteScribbleHook.onTouchEvent(activity, event)
+                    if (consumed) return@intercept true
                 }
                 chain.proceed()
             }
@@ -380,7 +344,7 @@ class MainHook : XposedModule() {
                 val activity = chain.thisObject as? Activity
                 val event = chain.args[0] as? MotionEvent
                 if (activity != null && event != null && activity.javaClass.name == TARGET_CANVAS_ACTIVITY) {
-                    NoteScribbleHook.onMotionEvent(activity, event)
+                    NoteScribbleHook.onGenericMotionEvent(activity, event)
                 }
                 chain.proceed()
             }

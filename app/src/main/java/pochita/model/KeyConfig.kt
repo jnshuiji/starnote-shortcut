@@ -78,6 +78,10 @@ class KeyConfig(context: Context) {
         editor.apply()
     }
 
+    var keyDragCanvas: Int
+        get() = getKeyCode(ActionType.DRAG_CANVAS_HOLD)
+        set(v) = setKeyCode(ActionType.DRAG_CANVAS_HOLD, v)
+
     var keyToggleEraser: Int
         get() = getKeyCode(ActionType.TOGGLE_ERASER_HOLD)
         set(v) = setKeyCode(ActionType.TOGGLE_ERASER_HOLD, v)

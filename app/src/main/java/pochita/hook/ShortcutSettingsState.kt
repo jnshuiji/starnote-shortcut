@@ -13,6 +13,10 @@ import pochita.model.KeyConfig
 object ShortcutSettingsState {
 
     @Volatile
+    var keyDragCanvas: Int = ActionType.DRAG_CANVAS_HOLD.defaultKeyCode
+        private set
+
+    @Volatile
     var keyToggleEraser: Int = ActionType.TOGGLE_ERASER_HOLD.defaultKeyCode
         private set
 
@@ -54,6 +58,7 @@ object ShortcutSettingsState {
     @Synchronized
     fun reload(context: Context) {
         val config = KeyConfig(context)
+        keyDragCanvas = config.keyDragCanvas
         keyToggleEraser = config.keyToggleEraser
         keyLasso = config.keyLasso
         keyPen = config.keyPen
@@ -63,6 +68,7 @@ object ShortcutSettingsState {
 
     fun getKeyCode(action: ActionType): Int {
         return when (action) {
+            ActionType.DRAG_CANVAS_HOLD -> keyDragCanvas
             ActionType.TOGGLE_ERASER_HOLD -> keyToggleEraser
             ActionType.SELECT_LASSO -> keyLasso
             ActionType.SELECT_PEN -> keyPen

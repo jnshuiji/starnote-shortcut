@@ -17,6 +17,12 @@ enum class ActionType(
     val description: String,
     val defaultKeyCode: Int
 ) {
+    DRAG_CANVAS_HOLD(
+        id = "drag_canvas",
+        title = "拖动画布",
+        description = "按住此键并在画布上移动手写笔可拖动画布",
+        defaultKeyCode = KeyEvent.KEYCODE_SPACE
+    ),
     TOGGLE_ERASER_HOLD(
         id = "eraser_hold",
         title = "按切松回",
