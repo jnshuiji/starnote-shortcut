@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 /**
  * StarNote (com.onyx.galaxy.note) Xposed 核心注入模块
  *
- * 1. 提供 WSA / x86 运行时动态链接库兼容补丁（真机 ARM64 自动跳过）；
+ * 1. 提供 x86_64 虚拟化环境动态链接库兼容补丁（ARM64 原生真机自动跳过）；
  * 2. 在 StarNote 设置页精确挂载「快捷键设置」一级菜单与行内零弹窗配置面板；
  * 3. 在画板 NoteScribbleActivity 中秒级拦截并调度各快捷键工具动作。
  */

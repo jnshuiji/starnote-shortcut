@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
  */
 object NoteScribbleHook {
     private const val TAG = "StarNoteScribbleHook"
-    const val ACTION_COMMAND = "pochita.starnote.ACTION_COMMAND"
+    const val ACTION_COMMAND = "com.pochita.starnote.ACTION_COMMAND"
     const val EXTRA_CMD = "cmd"
 
     private var activeActivityRef: WeakReference<Activity>? = null

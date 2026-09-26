@@ -1,10 +1,10 @@
 <div align="center">
 
-<img src="docs/icon.png" width="120" height="120" alt="StarNote Optimizer Icon" />
+<img src="docs/icon.png" width="120" height="120" alt="StarNote Shortcut Icon" />
 
-# StarNote 快捷键扩展模块
+# StarNote Shortcut
 
-基于 LSPosed (API 102 / LibXposed) 开发的 StarNote (`com.onyx.galaxy.note`) 运行时增强模块。提供原生设置界面就地注入、画板工具调度、按切松回瞬态切换以及输入硬件防抖状态机支持。
+基于 LSPosed (API 102 / LibXposed) 开发的 StarNote (`com.onyx.galaxy.note`) 快捷键与画板工具调度增强模块。提供原生设置界面就地注入、画板工具调度、按切松回瞬态切换以及输入硬件防抖状态机支持。
 
 </div>
 
@@ -72,8 +72,7 @@ app/src/main/
 │   ├── module.prop                      # 模块规范配置 (API 102, protective mode)
 │   └── scope.list                       # 作用域声明 (com.onyx.galaxy.note)
 ├── res/values/
-│   ├── strings.xml                      # 模块名称与作用域资源
-│   └── themes.xml                       # 基础主题声明
+│   └── strings.xml                      # 模块名称、描述与作用域资源
 └── java/pochita/
     ├── hook/
     │   ├── MainHook.kt                  # 模块入口、ABI 检测与 Activity 挂钩
