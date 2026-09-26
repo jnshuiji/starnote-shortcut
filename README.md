@@ -1,6 +1,12 @@
+<div align="center">
+
+<img src="docs/icon.png" width="120" height="120" alt="StarNote Optimizer Icon" />
+
 # StarNote 快捷键扩展模块
 
 基于 LSPosed (API 102 / LibXposed) 开发的 StarNote (`com.onyx.galaxy.note`) 运行时增强模块。提供原生设置界面就地注入、画板工具调度、按切松回瞬态切换以及输入硬件防抖状态机支持。
+
+</div>
 
 ---
 
@@ -109,3 +115,16 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
 安装完成后在 LSPosed 管理器中启用模块，并重启 StarNote 应用。
+
+---
+
+## 知识产权与免责声明
+
+### 1. 角色形象与艺术元素
+本模块应用图标中使用的波奇塔（Pochita）角色形象源于漫画作品《Chainsaw Man》（电锯人），其著作权与相关知识产权归原作者藤本树（Tatsuki Fujimoto）及株式会社集英社（Shueisha）/ MAPPA 所有。本项目所使用的图标系基于该角色形象的非商业性衍生艺术再创作，仅供开源社区技术研究、个人学习交流与效率增强使用。
+
+### 2. 宿主软件与商标
+StarNote（`com.onyx.galaxy.note`）及其相关界面、图标与品牌标识归属于广州文石信息科技有限公司（Onyx International Inc.）。本项目为完全独立的第三方开源 LSPosed 模块，与文石官方不存在任何商业合作、官方授权或关联归属关系。
+
+### 3. 免责声明与侵权处理
+本项目属于开源非营利项目，不提供任何形式的商业担保，亦不承担因使用本模块衍生出的任何直接或间接责任。若相关权利人认为本项目包含的代码、设计或美术资源侵犯了其合法权益，请通过 GitHub Issue 或提交 PR 联系维护者，相关内容将在核实后第一时间进行修改、替换或下架处理。
