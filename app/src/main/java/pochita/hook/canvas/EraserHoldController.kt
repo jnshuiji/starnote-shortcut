@@ -21,6 +21,13 @@ object EraserHoldController {
     var isEraserHolding = false
         private set
 
+    @Volatile
+    var isPenTouchingScreen = false
+        private set
+
+    @Volatile
+    private var isPendingRevertOnPenUp = false
+
     private var previousToolViewRef: WeakReference<View>? = null
     private val mainHandler = Handler(Looper.getMainLooper())
     private var pendingRevertRunnable: Runnable? = null
@@ -28,6 +35,8 @@ object EraserHoldController {
     fun clearCaches() {
         cancelPendingRevert()
         isEraserHolding = false
+        isPenTouchingScreen = false
+        isPendingRevertOnPenUp = false
         previousToolViewRef = null
     }
 
@@ -36,10 +45,11 @@ object EraserHoldController {
      * 1. 记忆当前画笔工具（若当前为套索等非画笔工具，绝不记忆，松开时直接回默认画笔）；
      * 2. 切换至橡皮擦；
      * 3. 标记 isEraserHolding = true，屏蔽后续多余的按键重发；
-     * 4. 立即取消任何挂起的延时回退任务（若处于 50ms 防抖窗口内，直接救回并保持橡皮擦）。
+     * 4. 立即取消任何挂起的延时回退任务。
      */
     fun onEraserHoldDown(activity: Activity) {
         cancelPendingRevert()
+        isPendingRevertOnPenUp = false
         if (isEraserHolding) {
             return
         }
@@ -58,15 +68,51 @@ object EraserHoldController {
 
     /**
      * 按切松回 - 松开阶段：
-     * 无论笔尖是否在屏幕表面触控，只要收到按键松开指令，通过 50ms 微轻量防抖定时器缓冲：
-     * 1. 若 50ms 内驱动因落笔产生瞬态 DOWN 脉冲，立即在 onEraserHoldDown 中取消回退，平滑无缝保持橡皮擦；
-     * 2. 若 50ms 内无新按键，判定为真实松开按键，无论此时笔尖是否在屏幕触控，立即切回画笔，达到极致跟手的“松手即回”体验。
+     * 若笔尖仍与屏幕接触擦除中，暂缓执行回退，待提笔时再触发，防止擦除过程中误切回画笔；
+     * 若处于悬浮状态，启动 50ms 防抖定时器回退画笔。
      */
     fun onEraserHoldUp(activity: Activity) {
         if (!isEraserHolding) {
             return
         }
+        if (isPenTouchingScreen) {
+            isPendingRevertOnPenUp = true
+            return
+        }
         schedulePendingRevert(activity, delayMs = 50L)
+    }
+
+    /**
+     * 笔尖接触屏幕落笔阶段：
+     * 标记笔尖接触中，并立即取消挂起的回退任务，保障擦除过程不被中断。
+     */
+    fun onPenTouchDown(activity: Activity) {
+        isPenTouchingScreen = true
+        cancelPendingRevert()
+    }
+
+    /**
+     * 笔尖抬起离开屏幕阶段：
+     * 若按键在落笔期间已松开，则在提笔后立即执行画笔回退。
+     */
+    fun onPenTouchUp(activity: Activity) {
+        isPenTouchingScreen = false
+        if (isEraserHolding && isPendingRevertOnPenUp) {
+            isPendingRevertOnPenUp = false
+            schedulePendingRevert(activity, delayMs = 50L)
+        }
+    }
+
+    /**
+     * 手写笔悬浮离开感应范围阶段：
+     * 若处于橡皮擦暂态，在笔尖脱离感应区时立即切回默认画笔。
+     */
+    fun onPenHoverExit(activity: Activity) {
+        isPenTouchingScreen = false
+        if (isEraserHolding) {
+            isPendingRevertOnPenUp = false
+            schedulePendingRevert(activity, delayMs = 0L)
+        }
     }
 
     fun cancelPendingRevert() {
@@ -82,6 +128,7 @@ object EraserHoldController {
             if (isEraserHolding) {
                 Log.d(TAG, "schedulePendingRevert: executing revert to pen")
                 isEraserHolding = false
+                isPendingRevertOnPenUp = false
                 val prev = previousToolViewRef?.get()
                 previousToolViewRef = null
                 if (prev != null && prev.isAttachedToWindow) {

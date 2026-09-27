@@ -182,6 +182,8 @@ object CanvasToolController {
     }
 
     fun selectPen(activity: Activity) {
+        EraserHoldController.clearCaches()
+        StylusButtonHandler.clearState()
         val success = selectToolByEnumName(activity, "INK_PEN", "MARKER_PEN", "BALL_PEN", "PENCIL", "BRUSH_PEN", "PEN")
         if (!success) {
             val container = getToolContainer(activity) ?: return
@@ -208,6 +210,8 @@ object CanvasToolController {
     }
 
     fun selectLasso(activity: Activity) {
+        EraserHoldController.clearCaches()
+        StylusButtonHandler.clearState()
         val success = selectToolByEnumName(activity, "LASSO")
         if (!success) {
             val container = getToolContainer(activity) ?: return

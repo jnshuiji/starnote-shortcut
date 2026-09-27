@@ -81,6 +81,7 @@ object NoteScribbleHook {
 
     private fun clearCaches() {
         EraserHoldController.clearCaches()
+        StylusButtonHandler.clearState()
         CanvasDragController.clearCaches()
         CanvasToolController.clearCaches()
     }
@@ -88,7 +89,11 @@ object NoteScribbleHook {
     private fun handleCommand(activity: Activity, cmd: String) {
         when (cmd) {
             "pen" -> CanvasToolController.selectPen(activity)
-            "eraser" -> CanvasToolController.selectEraser(activity)
+            "eraser" -> {
+                EraserHoldController.clearCaches()
+                StylusButtonHandler.clearState()
+                CanvasToolController.selectEraser(activity)
+            }
             "lasso" -> CanvasToolController.selectLasso(activity)
             "eraser_hold_down" -> EraserHoldController.onEraserHoldDown(activity)
             "eraser_hold_up" -> EraserHoldController.onEraserHoldUp(activity)
@@ -107,8 +112,21 @@ object NoteScribbleHook {
                 if (isDown) EraserHoldController.onEraserHoldDown(activity) else EraserHoldController.onEraserHoldUp(activity)
             }
             ActionType.SELECT_PEN -> if (isDown) CanvasToolController.selectPen(activity)
-            ActionType.SELECT_ERASER -> if (isDown) CanvasToolController.selectEraser(activity)
+            ActionType.SELECT_ERASER -> if (isDown) {
+                EraserHoldController.clearCaches()
+                StylusButtonHandler.clearState()
+                CanvasToolController.selectEraser(activity)
+            }
             ActionType.SELECT_LASSO -> if (isDown) CanvasToolController.selectLasso(activity)
+        }
+    }
+
+    /**
+     * 按键长按重复事件处理
+     */
+    fun onKeyRepeat(activity: Activity, action: ActionType) {
+        if (action == ActionType.TOGGLE_ERASER_HOLD) {
+            EraserHoldController.cancelPendingRevert()
         }
     }
 
@@ -117,6 +135,10 @@ object NoteScribbleHook {
      */
     fun onTouchEvent(activity: Activity, event: MotionEvent): Boolean {
         StylusButtonHandler.checkStylusButtonState(activity, event)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> EraserHoldController.onPenTouchDown(activity)
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> EraserHoldController.onPenTouchUp(activity)
+        }
         return CanvasDragController.onTouchEvent(activity, event)
     }
 
@@ -125,6 +147,9 @@ object NoteScribbleHook {
      */
     fun onGenericMotionEvent(activity: Activity, event: MotionEvent): Boolean {
         StylusButtonHandler.checkStylusButtonState(activity, event)
+        if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
+            EraserHoldController.onPenHoverExit(activity)
+        }
         return false
     }
 
@@ -133,6 +158,9 @@ object NoteScribbleHook {
      */
     fun onMotionEvent(activity: Activity, event: MotionEvent) {
         StylusButtonHandler.checkStylusButtonState(activity, event)
+        if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
+            EraserHoldController.onPenHoverExit(activity)
+        }
     }
 
     /**

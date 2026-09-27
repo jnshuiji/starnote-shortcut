@@ -196,6 +196,10 @@ class MainHook : XposedModule() {
                 activity.runOnUiThread {
                     NoteScribbleHook.executeAction(activity, action, isDown = true)
                 }
+            } else {
+                activity.runOnUiThread {
+                    NoteScribbleHook.onKeyRepeat(activity, action)
+                }
             }
             return true
         } else if (event.action == KeyEvent.ACTION_UP) {
