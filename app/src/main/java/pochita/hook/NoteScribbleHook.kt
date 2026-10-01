@@ -147,8 +147,13 @@ object NoteScribbleHook {
      */
     fun onGenericMotionEvent(activity: Activity, event: MotionEvent): Boolean {
         StylusButtonHandler.checkStylusButtonState(activity, event)
-        if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
-            EraserHoldController.onPenHoverExit(activity)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_ENTER -> {
+                EraserHoldController.onPenHover(activity)
+            }
+            MotionEvent.ACTION_HOVER_EXIT -> {
+                EraserHoldController.onPenHoverExit(activity)
+            }
         }
         return false
     }
@@ -158,8 +163,13 @@ object NoteScribbleHook {
      */
     fun onMotionEvent(activity: Activity, event: MotionEvent) {
         StylusButtonHandler.checkStylusButtonState(activity, event)
-        if (event.actionMasked == MotionEvent.ACTION_HOVER_EXIT) {
-            EraserHoldController.onPenHoverExit(activity)
+        when (event.actionMasked) {
+            MotionEvent.ACTION_HOVER_MOVE, MotionEvent.ACTION_HOVER_ENTER -> {
+                EraserHoldController.onPenHover(activity)
+            }
+            MotionEvent.ACTION_HOVER_EXIT -> {
+                EraserHoldController.onPenHoverExit(activity)
+            }
         }
     }
 
